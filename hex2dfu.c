@@ -51,8 +51,8 @@ void set32le(uint8_t *ptr, uint32_t val)
 //efab5b0739a834bac702aeb5cd08ffe227908faaae501f910e7e07d8d41fbb06
 int main (int argc, char **argv) {
   int i, c, vid =0x0483, pid = 0xdf11, ver = 0xffff;
-  char *tar0_lab = NULL, *out_fn = NULL;
-  FILE *inFile, *outFile;
+  char *tar0_lab = NULL, *out_fn = NULL, *out_bin_fn = NULL;
+  FILE *inFile, *outFile, *outBinFile;
   unsigned char json_output = 0;
   char *in_hex[MAX_IN_HEX];
   int image_cnt = -1;
@@ -72,12 +72,10 @@ int main (int argc, char **argv) {
   int vect_crc_offset[MAX_IN_HEX];
   int total_len = 0;
 
-  unsigned char *dfu;
-  int dfu_len;
   unsigned int crc = 0, tmp, add_crc32 = 0;
 
   opterr = 0;
-  while ((c = getopt (argc, argv, "hv:p:d:i:l:o:C:c:S:P:eJ")) != -1) {
+  while ((c = getopt (argc, argv, "hv:p:d:i:l:o:b:C:c:S:P:eJ")) != -1) {
     switch (c) {
       case 'J':
         json_output = 1;
@@ -136,6 +134,9 @@ int main (int argc, char **argv) {
       case 'o':   //output file name
         out_fn = optarg;
         break;
+      case 'b':
+        out_bin_fn = optarg;
+        break;
       case 'h':
         print_help();
         break;
@@ -153,8 +154,8 @@ int main (int argc, char **argv) {
     return 0;
   }
 
-  if (!out_fn) {
-    perror ("No output file specifed.\n");
+  if ((!out_fn) && (!out_bin_fn)) {
+    perror ("No output file(s) specifed.\n");
     return 0;
   }
 
@@ -253,6 +254,10 @@ int main (int argc, char **argv) {
     }
   }
 
+  if (out_fn) {
+  unsigned char *dfu;
+  int dfu_len;
+
   //Total dfu len
   dfu_len =
     11 +              //Prefix
@@ -343,8 +348,51 @@ int main (int argc, char **argv) {
   c = fwrite (dfu,  dfu_len, 1, outFile);
   fclose(outFile);
   if (c != 1) {
-    printf ("error: write to output file\n");
+    printf ("error: write to output dfu file\n");
   }
+  free(dfu);
+  }
+
+  /* generate bin file? */
+  if (out_bin_fn) {
+    unsigned char *bin;
+    unsigned int bin_start_address = 0xffffffff;
+    int bin_len = 0;
+
+    /* get start address */
+    for (i = 0; i < image_cnt; i++) {
+      if (tar_start_address[i] < bin_start_address)
+        bin_start_address = tar_start_address[i];
+    }
+    /* get len */
+    for (i = 0; i < image_cnt; i++) {
+      if (bin_len < (tar_start_address[i] + tar_len[i] - bin_start_address))
+        bin_len = tar_start_address[i] + tar_len[i] - bin_start_address;
+    }
+
+    bin = malloc(bin_len);
+    if (bin == NULL) {
+      perror("Failed to aloocate out buffer\n");
+      return 0;
+    }
+    memset(bin, 0xff, bin_len);
+
+    for (i = 0; i < image_cnt; i++) {
+      unsigned int offset = tar_start_address[i] - bin_start_address;
+      memcpy(bin + offset, tar_buf[i], tar_len[i]);
+    }
+
+    //write bin to file
+    outBinFile = fopen (out_bin_fn, "wb");
+    c = fwrite (bin,  bin_len, 1, outBinFile);
+    fclose(outBinFile);
+    if (c != 1) {
+      printf ("error: write to output dfu file\n");
+    }
+
+    printf("Bin file: base: 0x%08xs, len %d bytes\r\n", bin_start_address, bin_len);
+  }
+
   if (json_output) {
     /* TODO: for each input file? */
     printf("{\"code_address\":\"0x%08x\"", tar_start_address[0]);
@@ -436,7 +484,8 @@ void print_help(void) {
 	printf("-h        - help\r\n");
 	printf("-i        - Target0 HEX file name (mandatory)\r\n");
 	printf("-l        - Target0 name (optional, default: EncedoKey)\r\n");
-	printf("-o        - output DFU file name (mandatory)\r\n");
+	printf("-o        - output DFU file name (optional)\r\n");
+	printf("-b        - output BIN file name (optional)\r\n");
 	printf("-S        - ED25519 'secret' to sign the code (optional)\r\n");
 	printf("-P        - Publisher ED25519 'public' to verify firmware sign (optional)\r\n");
 	printf("-e        - add Publisher ED25519 based on 'secret' or the one form -P (if given)\r\n");
