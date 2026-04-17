@@ -14,10 +14,13 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Clone ED25519
-      run: git clone https://github.com/rusefi/ed25519 ED25519
+      run: |
+        git clone https://github.com/rusefi/ed25519 ED25519_repo
+        mkdir ED25519
+        cp ED25519_repo/src/* ED25519/
 
     - name: Compile
-      run: gcc -DED25519_SUPPORT hex2dfu.c ED25519/*.c -o hex2dfu
+      run: gcc -DED25519_SUPPORT hex2dfu.c ED25519/*.c -o hex2dfu -I.
 
     - name: Test run
       run: ./hex2dfu --help || true
