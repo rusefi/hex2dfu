@@ -1,0 +1,23 @@
+name: Ubuntu Build
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Clone ED25519
+      run: git clone https://github.com/rusefi/ed25519 ED25519
+
+    - name: Compile
+      run: gcc -DED25519_SUPPORT hex2dfu.c ED25519/*.c -o hex2dfu
+
+    - name: Test run
+      run: ./hex2dfu --help || true
