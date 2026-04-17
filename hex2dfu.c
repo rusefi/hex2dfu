@@ -362,7 +362,7 @@ int main (int argc, char **argv) {
           }
           printf("\r\n");
       }
-      printf("CRC32 data: 0x%08x @0x%08x\r\n", crc, add_crc32+tar0_start_address);
+      printf("CRC32 data: 0x%08x @0x%08x\r\n", crc, add_crc32+tar_start_address);
     }
 #endif
   }
